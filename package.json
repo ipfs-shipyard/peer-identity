@@ -1,5 +1,5 @@
 {
-  "name": "peer-crdt-signing",
+  "name": "peer-identity",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
