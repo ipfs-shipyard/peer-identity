@@ -7,6 +7,7 @@ const PeerIdentity = require('../index.js');
 describe('generate keys', () => {
 
   let peerIdentity;
+  let proof;
 
   before(() => {
 
@@ -36,6 +37,21 @@ describe('generate keys', () => {
     expect(peerIdentity.state.hasSession).to.be.true();
     expect(peerIdentity.state.inLocalStorage).to.be.true();
     expect(id).to.equal(peerIdentity.session.id);
+  });
+
+  it('create signature and verify', async () => {
+
+    const data = 'How are you?';
+    const { data58, sig } = await peerIdentity.signString(data);
+    const { verified, error } = await peerIdentity.verify(data58, peerIdentity.session.id, sig);
+    expect(verified).to.be.true();
+  });
+
+  it('export DID', async () => {
+
+    const { did, proof } = await peerIdentity.exportProof(peerIdentity.session.id);
+    const success = await peerIdentity.importProof(proof);
+    expect(success).to.be.true();
   });
 
 });
