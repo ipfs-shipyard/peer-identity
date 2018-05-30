@@ -174,7 +174,7 @@ class PeerIdentity {
       return false;
     }
 
-    if (!peer[didObj.id]) {
+    if (!this.peer[didObj.id]) {
       this.peer[didObj.id] = {
         id: didObj.id,
         publicKey: publicKey
