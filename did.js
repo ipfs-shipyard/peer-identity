@@ -7,12 +7,11 @@ class DID {
     this.peerId = peerId;
     this.id = id || `did:ipfspeerstar:${UUID()}`;
 
-    this.obj = {
+    this.obj = Object.assign({
       '@context': ['https://w3id.org/did/v1', 'https://w3id.org/security/v1', 'https://schema.org'],
       '@type': 'Person',
-      id: this.id,
-      ...person
-    };
+      id: this.id
+    }, person);
 
     if (jwk) {
       this.setPublicJWK(jwk);
@@ -27,7 +26,7 @@ class DID {
 
   async sign() {
 
-    return  await this.peerId.signObject(this.obj);
+    return  await this.peerId.sign(JSON.stringify(this.obj));
   }
 
   setPublicJWK(jwk) {

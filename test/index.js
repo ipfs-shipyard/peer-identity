@@ -42,7 +42,7 @@ describe('generate keys', () => {
   it('create signature and verify', async () => {
 
     const data = 'How are you?';
-    const { data58, sig } = await peerIdentity.signString(data);
+    const { data58, sig } = await peerIdentity.sign(data);
     const { verified, error } = await peerIdentity.verify(data58, peerIdentity.session.id, sig);
     expect(verified).to.be.true();
   });

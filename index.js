@@ -27,7 +27,7 @@ class PeerIdentity {
     this.peer = {
       sessions: {}
     };
-    this.config = {...CONFIG_DEFAULTS, ...config};
+    this.config = Object.assign(CONFIG_DEFAULTS, config);
     this.session = {
       privateKey: null,
       publicKey: null,
@@ -35,7 +35,9 @@ class PeerIdentity {
     };
     this.state = {
       hasSession: false,
-      inLocalStorage: false
+      inLocalStorage: false,
+      loadedKeyPair: false,
+      generatedKeyPair: false
     };
     this.save = this.saveToLocalStorage;
     this.load = this.loadFromLocalStorage;
@@ -50,6 +52,40 @@ class PeerIdentity {
       this.localStorage = window.localStorage;
       this.subtle = crypto.subtle;
     }
+    this.cb = null;
+  }
+
+  handleState(cb) {
+
+    this.cb = cb;
+  }
+
+  setState(name, state) {
+
+    this.state[name] = state;
+    if (this.cb !== null) {
+      this.cb(name, state);
+    }
+  }
+
+  async loadOrCreate() {
+
+    const loaded = await this.loadFromLocalStorage();
+    if (!loaded) {
+      await this.generateSessionKeys();
+    }
+  }
+
+  async setPeer(id, jwk) {
+
+    const publicKey = await this.subtle.importKey('jwk', jwk, {
+      name: ALGO.name,
+      hash: HASH
+    }, true, ['verify']);
+    this.peer[id] = {
+      id,
+      publicKey
+    };
   }
 
   async loadFromLocalStorage() {
@@ -73,10 +109,19 @@ class PeerIdentity {
     if (!pubKeyString && !privKeyString) {
       return false;
     }
-    this.state.inLocalStorage = true;
-    this.state.hasSession = true;
+    this.setState('inLocalStorage', true);
+    this.setState('hasSession', true);
+    this.setState('loadedKeyPair', true);
     this.peer[this.session.id] = this.session;
     return true;
+  }
+
+  async setSessionKeyPair(keypair) {
+
+    this.session.privateKey = keypair.privateKey;
+    this.session.publicKey = keypair.publicKey;
+    this.session.id = `did:ipfspeer*:${UUID()}`;
+    this.peer[this.session.id] = this.session;
   }
 
   async addSession(id, jwk) {
@@ -101,10 +146,15 @@ class PeerIdentity {
       this.localStorage.setItem('sessionPublicJWK', JSON.stringify(pubExport));
       //window.localStorage.setItem('sessionProof', this.sessionProof);
       this.localStorage.setItem('sessionId', this.session.id);
-      this.state.inLocalStorage = true;
+      this.setState('inLocalStorage', true);
       return true;
     }
     return false;
+  }
+
+  clearStorage() {
+
+    this.localStorage.clear();
   }
 
   async loadPeerFromDID() {
@@ -124,6 +174,9 @@ class PeerIdentity {
     this.session.publicKey = keyPair.publicKey;
     this.state.hasSession = true;
     this.peer[this.session.id] = this.session;
+    this.setState('hasSession', true);
+    this.setState('generatedKeyPair', true);
+    await this.saveToLocalStorage();
 
     return keyPair;
   }
@@ -164,11 +217,12 @@ class PeerIdentity {
       hash: HASH
     }, true, ['verify']);
 
+
     const sigBuffer = Base58.decode(sig58);
-    const sigArr = toArrayBuffer(sigBuffer);
-    const dataBuffer = Buffer.from(did58);
-    const dataArr = toArrayBuffer(dataBuffer);
-    const verified = await this.subtle.verify(ALGO, publicKey, sigArr, dataArr);
+    //const sigArr = toArrayBuffer(sigBuffer);
+    const dataBuffer = Uint8Array.from(did58);
+    //const dataArr = toArrayBuffer(dataBuffer);
+    const verified = await this.subtle.verify(ALGO, publicKey, sigBuffer, dataBuffer);
 
     if(!verified) {
       return false;
@@ -183,27 +237,17 @@ class PeerIdentity {
     return true;
   }
 
-  async signObject(data) {
-
-    return this.signBuffer(Buffer.from(JSON.stringify(data), 'utf8'));
-  }
-
-  async signString(data) {
-
-    return this.signBuffer(Buffer.from(data, 'utf8'));
-  }
-
-  async signBuffer(data) {
+  async sign(data) {
 
     if (!this.state.hasSession) {
       await this.generateSessionKeys();
       await this.saveToLocalStorage();
     }
-    const data58 = Base58.encode(data);
-    const dataBuffer = Buffer.from(data58);
-    const dataArr = toArrayBuffer(dataBuffer);
-    const sigArr = await this.subtle.sign(ALGO, this.session.privateKey, dataArr, 'utf8');
-    const sig = Base58.encode(Buffer.from(sigArr));
+    const data58 = Base58.encode(Buffer.from(data, 'utf8'));
+    const dataUint = Uint8Array.from(data58);
+    const sigArr = await this.subtle.sign(ALGO, this.session.privateKey, dataUint, 'utf8');
+    const sigString = Buffer.from((new Uint8Array(sigArr)).buffer);
+    const sig = Base58.encode(sigString).toString('utf8');
 
     return {
       data58,
@@ -220,10 +264,9 @@ class PeerIdentity {
     }
     const publicKey = this.peer[id].publicKey;
     const sigBuffer = Base58.decode(sig);
-    const sigArr = toArrayBuffer(sigBuffer);
-    const dataBuffer = Buffer.from(data58);
-    const dataArr = toArrayBuffer(dataBuffer);
-    const verified = await this.subtle.verify(ALGO, publicKey, sigArr, dataArr);
+    const dataBuffer = Uint8Array.from(data58);
+    //const dataArr = toArrayBuffer(dataBuffer);
+    const verified = await this.subtle.verify(ALGO, publicKey, sigBuffer, dataBuffer);
     return {
       data58,
       id,
