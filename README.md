@@ -89,7 +89,9 @@ Verifies signature and decodes data.
 arguments:
 * data and sig in form: `${Base58(data)}.${Base58(id)}.sig`
 
-returns ```js
+returns
+
+```js
 Promise({
   data, //decoded base58
   id, // decoded base58
